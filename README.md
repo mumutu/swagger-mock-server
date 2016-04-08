@@ -55,6 +55,6 @@ or can aware of the type-name from the response schema which is defined by `x-yo
 
 * Bind Context to the Response to build context-based Response
 * make the refactor ..lame code
-* pass the Swagger test
+* pass the Swagger test (Done with my own yaml file)
 
  
