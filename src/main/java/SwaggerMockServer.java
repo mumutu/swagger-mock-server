@@ -48,11 +48,8 @@ public class SwaggerMockServer extends HttpApp {
     private static MockHelper mock = MockHelper.getInstance();
 
     public SwaggerMockServer(){
-//        paths = new TreeMap<>();
         swagger = new SwaggerParser()
-                .read("./swagger.yaml");
-//        paths.put("/bank/{type}", swagger.getPaths().get("/bank/{type}"));
-//        paths.put("/shop/{id}/customer/{cid}", swagger.getPaths().get("/shop/{id}/customer/{cid}"));
+                .read("./pet.yaml");
         paths = swagger.getPaths();
     }
 
