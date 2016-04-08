@@ -49,7 +49,7 @@ public class SwaggerMockServer extends HttpApp {
 
     public SwaggerMockServer(){
         swagger = new SwaggerParser()
-                .read("./pet.yaml");
+                .read("./echo.yaml");
         paths = swagger.getPaths();
     }
 
