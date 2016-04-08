@@ -47,18 +47,24 @@ public class SwaggerMockServer extends HttpApp {
 
     private static MockHelper mock = MockHelper.getInstance();
 
-    public SwaggerMockServer(){
+    public SwaggerMockServer(String path){
         swagger = new SwaggerParser()
-                .read("./echo.yaml");
+                .read(path);
         paths = swagger.getPaths();
     }
 
     public static void main(String[] args) throws IOException {
+
+        if(args.length < 1){
+            System.err.println("should have an input spec");
+            return;
+        }
+
         // boot up server using the route as defined below
         ActorSystem system = create();
 
         // HttpApp.bindRoute expects a route being provided by HttpApp.createRoute
-        SwaggerMockServer server = new SwaggerMockServer();
+        SwaggerMockServer server = new SwaggerMockServer(args[0]);
         server.setBinding(server.bindRoute("localhost", 9000, system));
         System.out.println("Type RETURN to exit");
         System.in.read();
@@ -170,7 +176,7 @@ public class SwaggerMockServer extends HttpApp {
                                     log.debug("CTX: {}", context);
                                     final HttpResponse response = HttpResponse.create()
                                             .withEntity(fromPropertyToString(property))//MockHelper
-                                            .withStatus(StatusCodes.ACCEPTED);
+                                            .withStatus(StatusCodes.OK);
                                     return ctx.complete(response);
                                 }, paraNamedMapping.values().toArray(new RequestVal[]{}))
                         );
@@ -224,7 +230,7 @@ public class SwaggerMockServer extends HttpApp {
     private Map<String, Object> toResponse(Property property, String typeName){
         Map<String, Object> mapping = new HashMap<>();
         if(property instanceof ArrayProperty) {
-            mapping.put(property.getName(), toResponse(((ArrayProperty) property).getItems(), typeName));
+            mapping.put(property.getName(), toResponse(((ArrayProperty) property).getItems(), typeName).values());
         }else if(property instanceof RefProperty){
             Model model = swagger.getDefinitions().get(((RefProperty) property).getSimpleRef());
             model.getProperties().forEach((k, v) -> {
@@ -263,16 +269,16 @@ public class SwaggerMockServer extends HttpApp {
     }
 
     private String defaultScript(Property property){
-        if(property instanceof IntegerProperty || property instanceof LongProperty){
+        if(property instanceof BaseIntegerProperty){
             return "@Int";
+        }else if(property instanceof EmailProperty){
+            return "@Email";
         }else if(property instanceof StringProperty
                 || property instanceof ByteArrayProperty
                 || property instanceof PasswordProperty){
             return "@String";
         }else if(property instanceof DecimalProperty){
             return "@Float";
-        }else if(property instanceof EmailProperty){
-            return "@Email";
         }else if(property instanceof UUIDProperty){
             return "@UUID";
         }else if (property instanceof BooleanProperty) {
@@ -285,6 +291,21 @@ public class SwaggerMockServer extends HttpApp {
         return "@String";
     }
 
+    private Route[] wrapBasePath(List<Route> routes){
+//        PathMatcher baseMatcher = Optional.ofNullable(swagger.getBasePath())
+//                .map(path -> PathMatchers.segment(path)).orElse(PathMatchers.rest());
+        if(swagger.getBasePath() != null) {
+            Object[] matchers = Stream.of(swagger.getBasePath().split("/"))
+                    .filter(StringUtils::isNotBlank).map( s -> PathMatchers.segment(s)).collect(Collectors.toList()).toArray();
+            return new Route[] {
+                    pathPrefix(matchers).route(
+                    pathSingleSlash().route(complete("base"))
+                    , routes.toArray(new Route[]{}))
+            };
+        }else{
+            return routes.toArray(new Route[]{});
+        }
+    }
 
     /**
      * how to make this from swagger?
@@ -300,7 +321,8 @@ public class SwaggerMockServer extends HttpApp {
                         pathSingleSlash().route(handleWith(ctx -> {
                             return ctx.complete("Swagger Mock Server");
                         })),
-                        JavaConversions.asScalaBuffer(toRoute(paths)).toList());
+                        wrapBasePath(toRoute(paths))
+                );
 
     }
 }
