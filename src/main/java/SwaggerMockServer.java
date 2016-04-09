@@ -28,6 +28,7 @@ import java.util.*;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static akka.actor.ActorSystem.*;
@@ -134,14 +135,10 @@ public class SwaggerMockServer extends HttpApp {
                                     akka.http.javadsl.server.values.Parameter tempParam;
                                     if (property instanceof StringProperty) {
                                         tempParam = Parameters.stringValue(p.getName());
-                                    } else if (property instanceof IntegerProperty || property instanceof BaseIntegerProperty) {
-                                        tempParam = Parameters.intValue(p.getName());
-                                    } else if (property instanceof LongProperty) {
+                                    } else if (property instanceof BaseIntegerProperty) {
                                         tempParam = Parameters.longValue(p.getName());
-                                    } else if (property instanceof DoubleProperty) {
+                                    } else if (property instanceof DecimalProperty) {
                                         tempParam = Parameters.doubleValue(p.getName());
-                                    } else if (property instanceof FloatProperty) {
-                                        tempParam = Parameters.floatValue(p.getName());
                                     } else if (property instanceof BooleanProperty) {
                                         tempParam = Parameters.booleanValue(p.getName());
                                     } else {
@@ -149,7 +146,7 @@ public class SwaggerMockServer extends HttpApp {
                                     }
 
                                     if (param.getDefault() != null) {
-                                        return Tuple2.apply(p.getName(), tempParam.withDefault(param.getDefault()));
+                                        return Tuple2.apply(p.getName(), tempParam.withDefault(param.getDefault()));//
                                     } else if (!param.getRequired()) {
                                         return Tuple2.apply(p.getName(), tempParam.optional());
                                     } else {
@@ -175,7 +172,7 @@ public class SwaggerMockServer extends HttpApp {
                                     });
                                     log.debug("CTX: {}", context);
                                     final HttpResponse response = HttpResponse.create()
-                                            .withEntity(fromPropertyToString(property))//MockHelper
+                                            .withEntity(fromPropertyToString(property, context))//MockHelper
                                             .withStatus(StatusCodes.OK);
                                     return ctx.complete(response);
                                 }, paraNamedMapping.values().toArray(new RequestVal[]{}))
@@ -207,13 +204,62 @@ public class SwaggerMockServer extends HttpApp {
         return PathMatchers.intValue(); //dummy one
     }
 
-    private String fromPropertyToString(Property property){
+    /**
+     * TODO
+     * @param obj
+     * @param context
+     * @param clazz
+     * @param <T>
+     * @return
+     */
+    private Long getOrFromContext(Object obj, Map context){
+
+        if(obj == null) {
+            return null;
+        }
+
+        if(obj instanceof String){
+            if(((String) obj).startsWith("$")){
+                String paramName = ((String) obj).substring(1);
+                if(context.get(paramName) != null){
+                    return (Long) context.get(paramName);
+                }
+            }
+        } else {
+            return Long.valueOf(obj.toString());
+        }
+
+        throw new RuntimeException("Format Error " + obj.getClass() + ":" + obj); //TODO
+    }
+
+    private String fromPropertyToString(Property property, Map context){
         String typeName = (String) property.getVendorExtensions().getOrDefault("x-yod-name", "default");
         if(property instanceof ArrayProperty) {
-            //TODO
-            Random random = new Random();
-            int max = random.nextInt(20);
-            return Json.toJson(IntStream.range(0, max).mapToObj(i -> {
+            Long size = null;
+            Long page = null;
+            Long max = null;
+            try {
+                Map arraySetting = (Map) property.getVendorExtensions().get("x-yod-array");
+
+                //get size
+                Object sizeObj = arraySetting.getOrDefault("size", 10l);//default 10
+                size = getOrFromContext(sizeObj, context);
+
+                //get max
+                Object maxObj = arraySetting.get("max");
+                max = getOrFromContext(maxObj, context);
+
+                Object pageObj = arraySetting.get("page");
+                page = getOrFromContext(pageObj, context);
+
+            }catch(Exception ex){
+                throw new RuntimeException(ex.getMessage());
+            }
+
+            if(page == null) page = 0l; //default
+            if(max == null) max = (page + 1)*size;//default
+
+            return Json.toJson(LongStream.range(page * size, Math.min(max, (page + 1) * size)).mapToObj(i -> {
                 return toResponse(((ArrayProperty) property).getItems(), typeName);
             }).collect(Collectors.toList())).toString();
         }else {
