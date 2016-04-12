@@ -48,7 +48,8 @@ or can aware of the type-name from the response schema which is defined by `x-yo
         description: name
         x-yod-type:
           bank: '@(["中国银行", "工商银行", "农业银行", "建设银行", "交通银行"]).sample @([沪太路支行, 五角场支行]).sample'
-```https://github.com/mumutu/swagger-mock-server
+```
+
 
 ### support size&page context
 
