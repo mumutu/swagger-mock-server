@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import play.libs.Json;
 import scala.Tuple2;
 import scala.collection.JavaConversions;
+import scala.reflect.ClassTag;
 
 
 import java.io.IOException;
@@ -141,6 +142,17 @@ public class SwaggerMockServer extends HttpApp {
                                         tempParam = Parameters.doubleValue(p.getName());
                                     } else if (property instanceof BooleanProperty) {
                                         tempParam = Parameters.booleanValue(p.getName());
+                                    } else if (property instanceof ArrayProperty) {
+                                        //here only one nest
+//                                        Property nestedProperty = ((ArrayProperty) property).getItems();
+                                        tempParam = Parameters.fromString(property.getName(), List.class, str -> {
+                                            if (StringUtils.isBlank(str)) {
+                                                return Collections.emptyList();
+                                            } else {
+                                                return Arrays.asList(str.split(","));
+                                            }
+                                        });
+
                                     } else {
                                         throw new RuntimeException(String.format("Property type: %s is not supported yet", property.getClass()));
                                     }
@@ -239,7 +251,7 @@ public class SwaggerMockServer extends HttpApp {
             Long page = null;
             Long max = null;
             try {
-                Map arraySetting = (Map) property.getVendorExtensions().get("x-yod-array");
+                Map arraySetting = (Map) property.getVendorExtensions().getOrDefault("x-yod-array", Collections.emptyMap());
 
                 //get size
                 Object sizeObj = arraySetting.getOrDefault("size", 10l);//default 10
