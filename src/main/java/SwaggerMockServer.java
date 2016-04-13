@@ -57,9 +57,15 @@ public class SwaggerMockServer extends HttpApp {
 
     public static void main(String[] args) throws IOException {
 
+        int port = 9000;
+
         if(args.length < 1){
             System.err.println("should have an input spec");
             return;
+        }
+
+        if(args.length == 2){
+            port = Integer.parseInt(args[1]);
         }
 
         // boot up server using the route as defined below
@@ -67,7 +73,7 @@ public class SwaggerMockServer extends HttpApp {
 
         // HttpApp.bindRoute expects a route being provided by HttpApp.createRoute
         SwaggerMockServer server = new SwaggerMockServer(args[0]);
-        server.setBinding(server.bindRoute("localhost", 9000, system));
+        server.setBinding(server.bindRoute("0.0.0.0", port, system));
         System.out.println("Type RETURN to exit");
         System.in.read();
         system.terminate();
