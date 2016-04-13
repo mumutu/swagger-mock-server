@@ -66,6 +66,21 @@ context var  is a string start with '$'
     max: 100
 ```
 
+### How to Start
+
+* prepare your swagger spec file xxx.yml
+* build this project
+
+```
+mvn clean install
+```
+* run with java
+ 
+```
+java -jar mock-server-1.0-snapshot.jar path-to-file port
+```
+
+
 ## TODO
 
 * Bind Context to the Response to build context-based Response
