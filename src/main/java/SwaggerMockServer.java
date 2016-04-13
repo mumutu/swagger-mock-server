@@ -45,7 +45,7 @@ public class SwaggerMockServer extends HttpApp {
 
     private Swagger swagger;
 
-    private CompletionStage<Http.ServerBinding> binding;
+    private Http.ServerBinding binding;
 
     private static MockHelper mock = MockHelper.getInstance();
 
@@ -73,17 +73,17 @@ public class SwaggerMockServer extends HttpApp {
 
         // HttpApp.bindRoute expects a route being provided by HttpApp.createRoute
         SwaggerMockServer server = new SwaggerMockServer(args[0]);
-        server.setBinding(server.bindRoute("0.0.0.0", port, system));
-        System.out.println("Type RETURN to exit");
-        System.in.read();
-        system.terminate();
+        server.bindRoute("0.0.0.0", port, system).whenComplete((binding, ex) -> {
+            server.setBinding(binding);
+        });
+
     }
 
-    public CompletionStage<Http.ServerBinding> getBinding() {
+    public Http.ServerBinding getBinding() {
         return binding;
     }
 
-    public void setBinding(CompletionStage<Http.ServerBinding> binding) {
+    public void setBinding(Http.ServerBinding binding) {
         this.binding = binding;
     }
 
