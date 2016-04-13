@@ -383,7 +383,7 @@ public class SwaggerMockServer extends HttpApp {
                 // here the complete behavior for this server is defined
                 route(
                         pathSingleSlash().route(handleWith(ctx -> {
-                            return ctx.complete(swagger.);
+                            return ctx.complete("Swagger mock server");
                         })),
                         wrapBasePath(toRoute(paths))
                 );
