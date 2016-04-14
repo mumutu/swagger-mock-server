@@ -300,7 +300,14 @@ public class SwaggerMockServer extends HttpApp {
     private Map<String, Object> toResponse(Property property, String typeName){
         Map<String, Object> mapping = new HashMap<>();
         if(property instanceof ArrayProperty) {
-            mapping.put(property.getName(), toResponse(((ArrayProperty) property).getItems(), typeName).values());
+            Property itemProperty = ((ArrayProperty) property).getItems();
+            if( itemProperty instanceof RefProperty
+                    || itemProperty instanceof ObjectProperty ){
+                mapping.put(property.getName(), toResponse(itemProperty, typeName));
+            }else{
+                //base type so the key may be null
+                mapping.put(property.getName(), toResponse(((ArrayProperty) property).getItems(), typeName).values());
+            }
         }else if(property instanceof RefProperty){
             Model model = swagger.getDefinitions().get(((RefProperty) property).getSimpleRef());
             model.getProperties().forEach((k, v) -> {
