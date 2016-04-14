@@ -3,11 +3,16 @@ import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCodes;
+import akka.http.javadsl.model.headers.AccessControlAllowOrigin;
+import akka.http.javadsl.model.headers.HttpEncodingRanges;
+import akka.http.javadsl.model.headers.HttpOrigin;
+import akka.http.javadsl.model.headers.HttpOriginRange;
 import akka.http.javadsl.server.*;
 import akka.http.javadsl.server.values.Parameters;
 import akka.http.javadsl.server.values.PathMatcher;
 import akka.http.javadsl.server.values.PathMatchers;
 import akka.http.scaladsl.Http;
+import akka.http.javadsl.model.HttpHeader;
 import com.google.common.collect.Sets;
 import io.swagger.models.*;
 import io.swagger.models.parameters.Parameter;
@@ -190,6 +195,7 @@ public class SwaggerMockServer extends HttpApp {
                                     });
                                     log.debug("CTX: {}", context);
                                     final HttpResponse response = HttpResponse.create()
+                                            .addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
                                             .withEntity(fromPropertyToString(property, context))//MockHelper
                                             .withStatus(StatusCodes.OK);
                                     return ctx.complete(response);
