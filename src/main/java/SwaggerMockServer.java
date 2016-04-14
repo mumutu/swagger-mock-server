@@ -292,6 +292,37 @@ public class SwaggerMockServer extends HttpApp {
     }
 
     /**
+     *
+     * @param arrayProperty
+     * @param typeName
+     * @return
+     */
+    private List<Object> genCollections(ArrayProperty arrayProperty, String typeName){
+        Map arraySetting = (Map) arrayProperty.getVendorExtensions().getOrDefault("x-yod-array", Collections.emptyMap());
+        Long size = null;
+        Random random = new Random();
+        try {
+            Object sizeObj = arraySetting.getOrDefault("size", random.nextInt(10));//default 10
+            size = new Long(String.valueOf(sizeObj));
+            return LongStream.range(0, size).mapToObj(i -> {
+
+                Property itemProperty = arrayProperty.getItems();
+                Map<String, Object> result = toResponse(arrayProperty.getItems(), typeName);
+                if( itemProperty instanceof RefProperty
+                        || itemProperty instanceof ObjectProperty ){
+                    return result;
+                }else{
+                    return result.values().stream().findFirst();
+                }
+            }).collect(Collectors.toList());
+        }catch(Exception ex){
+            log.error(ex.getMessage());
+        }
+
+        return Collections.emptyList();
+    }
+
+    /**
      * stick to the first type
      * @param property
      * @param typeName
@@ -301,13 +332,8 @@ public class SwaggerMockServer extends HttpApp {
         Map<String, Object> mapping = new HashMap<>();
         if(property instanceof ArrayProperty) {
             Property itemProperty = ((ArrayProperty) property).getItems();
-            if( itemProperty instanceof RefProperty
-                    || itemProperty instanceof ObjectProperty ){
-                mapping.put(property.getName(), toResponse(itemProperty, typeName));
-            }else{
-                //base type so the key may be null
-                mapping.put(property.getName(), toResponse(((ArrayProperty) property).getItems(), typeName).values());
-            }
+           mapping.put(property.getName(), genCollections((ArrayProperty) property, typeName));
+
         }else if(property instanceof RefProperty){
             Model model = swagger.getDefinitions().get(((RefProperty) property).getSimpleRef());
             model.getProperties().forEach((k, v) -> {
