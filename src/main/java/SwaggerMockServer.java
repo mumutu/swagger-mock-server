@@ -1,4 +1,5 @@
 import akka.actor.ActorSystem;
+import akka.http.impl.engine.parsing.HttpHeaderParser;
 import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
@@ -196,7 +197,7 @@ public class SwaggerMockServer extends HttpApp {
                                     log.debug("CTX: {}", context);
                                     final HttpResponse response = HttpResponse.create()
                                             .addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
-                                            .withEntity(fromPropertyToString(property, context))//MockHelper
+                                            .withEntity(ContentTypes.APPLICATION_JSON, fromPropertyToString(property, context))//MockHelper
                                             .withStatus(StatusCodes.OK);
                                     return ctx.complete(response);
                                 }, paraNamedMapping.values().toArray(new RequestVal[]{}))
