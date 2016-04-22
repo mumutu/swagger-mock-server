@@ -284,9 +284,24 @@ public class SwaggerMockServer extends HttpApp {
             if(page == null) page = 0l; //default
             if(max == null) max = (page + 1)*size;//default
 
-            return Json.toJson(LongStream.range(page * size, Math.min(max, (page + 1) * size)).mapToObj(i -> {
+
+            List<Map<String, Object>> listMap = LongStream.range(page * size, Math.min(max, (page + 1) * size)).mapToObj(i -> {
                 return toResponse(((ArrayProperty) property).getItems(), typeName);
-            }).collect(Collectors.toList())).toString();
+            }).collect(Collectors.toList());
+
+            //need extract ..dying to de the refactor
+            List<Object> retList = listMap.stream().map(l -> {
+                Set<Map.Entry<String, Object>> entrySet = l.entrySet();
+                if (entrySet.size() == 1) {
+                    Map.Entry<String, Object> elem = entrySet.iterator().next();
+                    if (elem.getKey() == null) {
+                        return elem.getValue();
+                    }
+                }
+                return l;
+            }).collect(Collectors.toList());
+
+            return Json.toJson(retList).toString();
         }else {
             return Json.toJson(toResponse(property, typeName)).toString();
         }
