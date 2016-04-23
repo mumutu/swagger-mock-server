@@ -1,19 +1,19 @@
+package tu.mumu.swagger;
+
 import akka.actor.ActorSystem;
-import akka.http.impl.engine.parsing.HttpHeaderParser;
 import akka.http.javadsl.model.ContentTypes;
-import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCodes;
 import akka.http.javadsl.model.headers.AccessControlAllowOrigin;
-import akka.http.javadsl.model.headers.HttpEncodingRanges;
-import akka.http.javadsl.model.headers.HttpOrigin;
 import akka.http.javadsl.model.headers.HttpOriginRange;
 import akka.http.javadsl.server.*;
 import akka.http.javadsl.server.values.Parameters;
 import akka.http.javadsl.server.values.PathMatcher;
 import akka.http.javadsl.server.values.PathMatchers;
 import akka.http.scaladsl.Http;
-import akka.http.javadsl.model.HttpHeader;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.google.common.collect.Sets;
 import io.swagger.models.*;
 import io.swagger.models.parameters.Parameter;
@@ -26,15 +26,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import play.libs.Json;
 import scala.Tuple2;
-import scala.collection.JavaConversions;
-import scala.reflect.ClassTag;
+import tu.mumu.mock.MockHelper;
 
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -55,10 +52,17 @@ public class SwaggerMockServer extends HttpApp {
 
     private static MockHelper mock = MockHelper.getInstance();
 
+    private SwaggerJsonNodeParser parser;
+
     public SwaggerMockServer(String path){
         swagger = new SwaggerParser()
                 .read(path);
         paths = swagger.getPaths();
+        parser = new SwaggerJsonNodeParser(swagger, mock);
+    }
+
+    public Swagger getSwagger() {
+        return swagger;
     }
 
     public static void main(String[] args) throws IOException {
@@ -197,7 +201,7 @@ public class SwaggerMockServer extends HttpApp {
                                     log.debug("CTX: {}", context);
                                     final HttpResponse response = HttpResponse.create()
                                             .addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
-                                            .withEntity(ContentTypes.APPLICATION_JSON, fromPropertyToString(property, context))//MockHelper
+                                            .withEntity(ContentTypes.APPLICATION_JSON, fromPropertyToString(property, context))//tu.mumu.mock.MockHelper
                                             .withStatus(StatusCodes.OK);
                                     return ctx.complete(response);
                                 }, paraNamedMapping.values().toArray(new RequestVal[]{}))
@@ -257,7 +261,7 @@ public class SwaggerMockServer extends HttpApp {
         throw new RuntimeException("Format Error " + obj.getClass() + ":" + obj); //TODO
     }
 
-    private String fromPropertyToString(Property property, Map context){
+    public String fromPropertyToString(Property property, Map context){
         String typeName = (String) property.getVendorExtensions().getOrDefault("x-yod-name", "default");
         if(property instanceof ArrayProperty) {
             Long size = null;
@@ -284,135 +288,19 @@ public class SwaggerMockServer extends HttpApp {
             if(page == null) page = 0l; //default
             if(max == null) max = (page + 1)*size;//default
 
+            ArrayNode node = new ArrayNode(JsonNodeFactory.instance);
 
-            List<Map<String, Object>> listMap = LongStream.range(page * size, Math.min(max, (page + 1) * size)).mapToObj(i -> {
-                return toResponse(((ArrayProperty) property).getItems(), typeName);
+            List<JsonNode> jsonNodes = LongStream.range(page * size, Math.min(max, (page + 1) * size)).mapToObj(i -> {
+                return parser.toJsonNode(((ArrayProperty) property).getItems(), typeName);
             }).collect(Collectors.toList());
 
-            //need extract ..dying to de the refactor
-            List<Object> retList = listMap.stream().map(l -> {
-                Set<Map.Entry<String, Object>> entrySet = l.entrySet();
-                if (entrySet.size() == 1) {
-                    Map.Entry<String, Object> elem = entrySet.iterator().next();
-                    if (elem.getKey() == null) {
-                        return elem.getValue();
-                    }
-                }
-                return l;
-            }).collect(Collectors.toList());
-
-            return Json.toJson(retList).toString();
+            return node.addAll(jsonNodes).toString();
         }else {
-            return Json.toJson(toResponse(property, typeName)).toString();
+            return parser.toJsonNode(property, typeName).toString();
         }
-    }
-
-    /**
-     *
-     * @param arrayProperty
-     * @param typeName
-     * @return
-     */
-    private List<Object> genCollections(ArrayProperty arrayProperty, String typeName){
-        Map arraySetting = (Map) arrayProperty.getVendorExtensions().getOrDefault("x-yod-array", Collections.emptyMap());
-        Long size = null;
-        Random random = new Random();
-        try {
-            Object sizeObj = arraySetting.getOrDefault("size", random.nextInt(10));//default 10
-            size = new Long(String.valueOf(sizeObj));
-            return LongStream.range(0, size).mapToObj(i -> {
-
-                Property itemProperty = arrayProperty.getItems();
-                Map<String, Object> result = toResponse(arrayProperty.getItems(), typeName);
-                if( itemProperty instanceof RefProperty
-                        || itemProperty instanceof ObjectProperty ){
-                    return result;
-                }else{
-                    return result.values().stream().findFirst();
-                }
-            }).collect(Collectors.toList());
-        }catch(Exception ex){
-            log.error(ex.getMessage());
-        }
-
-        return Collections.emptyList();
-    }
-
-    /**
-     * stick to the first type
-     * @param property
-     * @param typeName
-     * @return
-     */
-    private Map<String, Object> toResponse(Property property, String typeName){
-        Map<String, Object> mapping = new HashMap<>();
-        if(property instanceof ArrayProperty) {
-            Property itemProperty = ((ArrayProperty) property).getItems();
-           mapping.put(property.getName(), genCollections((ArrayProperty) property, typeName));
-
-        }else if(property instanceof RefProperty){
-            Model model = swagger.getDefinitions().get(((RefProperty) property).getSimpleRef());
-            model.getProperties().forEach((k, v) -> {
-                v.setName(k);
-                Map<String, Object> nested = toResponse(v, typeName);
-                mapping.putAll(nested);
-            });
-
-        }else if(property instanceof ObjectProperty){
-            mapping.putAll(((ObjectProperty)property).getProperties());
-            ((ObjectProperty) property).getProperties().forEach((k, v) -> {
-                v.setName(k);
-                Map<String, Object> nested = toResponse(v, typeName);
-                mapping.putAll(nested);
-            });
-        }else{
-            //baseType?
-            //type -> default
-            mapping.put(property.getName(), mock.eval(getTypeEvalScript(property, typeName)));
-        }
-        return mapping;
-    }
-
-    //TODO ctx
-    private String getTypeEvalScript(Property property, String typeName){
-        Object script = property.getVendorExtensions().get("x-yod-type");
-        if(script != null ) {
-            if (script instanceof String) {
-                return (String) script;
-            } else if (script instanceof Map) {
-                return (String) ((Map) script).getOrDefault(typeName, defaultScript(property));
-            }
-            throw new RuntimeException(String.format("%s:%s is not supported here", property.getName(), script.getClass()));
-        }
-        return defaultScript(property);
-    }
-
-    private String defaultScript(Property property){
-        if(property instanceof BaseIntegerProperty){
-            return "@Int";
-        }else if(property instanceof EmailProperty){
-            return "@Email";
-        }else if(property instanceof StringProperty
-                || property instanceof ByteArrayProperty
-                || property instanceof PasswordProperty){
-            return "@String";
-        }else if(property instanceof DecimalProperty){
-            return "@Float";
-        }else if(property instanceof UUIDProperty){
-            return "@UUID";
-        }else if (property instanceof BooleanProperty) {
-            return "@Bool";
-        }else if(property instanceof DateProperty){
-            return "@Date('YYYY-MM-DD')";
-        }else if(property instanceof DateTimeProperty){
-            return "@Date('YYYY-MM-DD HH:mm:ss')";
-        }
-        return "@String";
     }
 
     private Route[] wrapBasePath(List<Route> routes){
-//        PathMatcher baseMatcher = Optional.ofNullable(swagger.getBasePath())
-//                .map(path -> PathMatchers.segment(path)).orElse(PathMatchers.rest());
         if(swagger.getBasePath() != null) {
             Object[] matchers = Stream.of(swagger.getBasePath().split("/"))
                     .filter(StringUtils::isNotBlank).map( s -> PathMatchers.segment(s)).collect(Collectors.toList()).toArray();

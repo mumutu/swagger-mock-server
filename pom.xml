@@ -29,7 +29,7 @@
                         <!--</execution>-->
                     <!--</executions>-->
                     <!--<configuration>-->
-                        <!--<mainClass>SwaggerMockServer</mainClass>-->
+                        <!--<mainClass>tu.mumu.swagger.SwaggerMockServer</mainClass>-->
                     <!--</configuration>-->
                 <!--</plugin>-->
                 <!--<plugin>-->
@@ -43,7 +43,7 @@
                                 <!--<implementation-version>${project.version}</implementation-version>-->
                             <!--</manifestEntries>-->
                             <!--<manifest>-->
-                                <!--<mainClass>SwaggerMockServer</mainClass>-->
+                                <!--<mainClass>tu.mumu.swagger.SwaggerMockServer</mainClass>-->
                                 <!--<addClasspath>true</addClasspath>-->
                                 <!--<classpathPrefix>lib/</classpathPrefix>-->
                             <!--</manifest>-->
@@ -104,7 +104,7 @@
                         </execution>
                     </executions>
                     <configuration>
-                        <mainClass>SwaggerMockServer</mainClass>
+                        <mainClass>tu.mumu.swagger.SwaggerMockServer</mainClass>
                         <classifier>exec</classifier>
                     </configuration>
                 </plugin>

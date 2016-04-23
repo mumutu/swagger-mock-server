@@ -1,5 +1,5 @@
-import java.io.FileNotFoundException;
-import java.io.FileReader;
+package tu.mumu.mock;
+
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import jdk.nashorn.api.scripting.NashornScriptEngine;
-import jdk.nashorn.api.scripting.ScriptObjectMirror;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +37,7 @@ public class MockHelper {
 			//inited
 			nashorn.eval("var yod = load('classpath:yod-mock.js')");
 //          compiledScript = nashorn.compile("load('classpath:yod-mock.js')");
-//			nashorn.eval(new FileReader(MockHelper.class.getClassLoader().getResource("mock.js").getFile()));
+//			nashorn.eval(new FileReader(tu.mumu.mock.MockHelper.class.getClassLoader().getResource("mock.js").getFile()));
 		} catch (ScriptException e) {
 			e.printStackTrace();
 		}
