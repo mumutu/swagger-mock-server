@@ -3,6 +3,7 @@ package tu.mumu.swagger;
 import akka.actor.ActorSystem;
 import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpResponse;
+import akka.http.javadsl.model.StatusCode;
 import akka.http.javadsl.model.StatusCodes;
 import akka.http.javadsl.model.headers.AccessControlAllowOrigin;
 import akka.http.javadsl.model.headers.HttpOriginRange;
@@ -184,11 +185,26 @@ public class SwaggerMockServer extends HttpApp {
 
 
                         Response rep = op.getResponses().getOrDefault("200", op.getResponses().get("404")); //TODO check
-
-
+                        Response repToBeShown = rep;
                         Route route = path(matchers.toArray()).route(
                                 handleWith(ctx -> {
-                                    Property property = rep.getSchema();
+                                    Optional<Response> response = swagger.getResponses().values().stream()
+                                            .filter(reps -> (Boolean) reps.getVendorExtensions().getOrDefault("x-is-global", false))
+                                            .map(reps -> {
+                                                Double chance = (Double) reps.getVendorExtensions().getOrDefault("x-chance", 0.0);
+                                                if (Math.random() < chance) {
+                                                    return reps;
+                                                }
+                                                return null;
+                                            }).filter(reps -> reps != null).findFirst();
+                                    Property property;
+                                    Integer httpCode = 200;
+                                    if (response.isPresent()) {
+                                        httpCode = (Integer) response.get().getVendorExtensions().getOrDefault("x-status-code", 200);
+                                        property = response.get().getSchema();
+                                    } else {
+                                        property = repToBeShown.getSchema();
+                                    }
 
                                     Map context = new HashMap<>();
                                     paraNamedMapping.entrySet().stream().forEach(named -> {
@@ -199,14 +215,13 @@ public class SwaggerMockServer extends HttpApp {
                                         }
                                     });
                                     log.debug("CTX: {}", context);
-                                    final HttpResponse response = HttpResponse.create()
+                                    final HttpResponse httpResponse = HttpResponse.create()
                                             .addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
                                             .withEntity(ContentTypes.APPLICATION_JSON, fromPropertyToString(property, context))//tu.mumu.mock.MockHelper
-                                            .withStatus(StatusCodes.OK);
-                                    return ctx.complete(response);
+                                            .withStatus(from(httpCode));
+                                    return ctx.complete(httpResponse);
                                 }, paraNamedMapping.values().toArray(new RequestVal[]{}))
                         );
-
 
                         if (method == HttpMethod.GET) {
                             return get(route);
@@ -224,6 +239,10 @@ public class SwaggerMockServer extends HttpApp {
                 .collect(Collectors.toList());
     }
 
+
+    private StatusCode from(Integer httpCode){
+       return  StatusCodes.lookup(httpCode).orElse(StatusCodes.OK);
+    }
 
     //TODO
     private PathMatcher fromProperty(Property property){

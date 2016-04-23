@@ -45,7 +45,12 @@ public class JsonTest {
 
         SwaggerMockServer server = new SwaggerMockServer("F:\\paradise\\xplat-doc\\swagger-api\\swagger-all-v2.yaml");
 
-        System.out.println(fromPropertyToString(ref, server.getSwagger()));
+        RefProperty refProperty = new RefProperty();
+        refProperty.set$ref("#/responses/NotFound");
+        System.out.println(refProperty.get$ref());
+        Model model =  server.getSwagger().getDefinitions().get("NotFound");
+        System.out.println(model);
+//        System.out.println(fromPropertyToString(ref, server.getSwagger()));
     }
 
     private String fromPropertyToString(Property property, Swagger swagger){
