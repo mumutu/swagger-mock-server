@@ -52,17 +52,22 @@ public class SwaggerJsonNodeParser {
         return Collections.emptyList();
     }
 
-    public JsonNode toJsonNode(Property property, String typeName){
+    public JsonNode toJsonNode(Property property, String typeName) {
         JsonNode rootNode;
-        if( property instanceof ArrayProperty ){
+        if (property instanceof ArrayProperty) {
             rootNode = new ArrayNode(JsonNodeFactory.instance);
             Property itemProperty = ((ArrayProperty) property).getItems();
-            ((ArrayNode)rootNode).addAll(genCollections((ArrayProperty) property, typeName));
-        }else if( property instanceof RefProperty ){
+            ((ArrayNode) rootNode).addAll(genCollections((ArrayProperty) property, typeName));
+        } else if (property instanceof RefProperty) {
             rootNode = new ObjectNode(JsonNodeFactory.instance);
             Model model = swagger.getDefinitions().get(((RefProperty) property).getSimpleRef());
             model.getProperties().forEach((k, v) -> {
-                ((ObjectNode)rootNode).set(k, toJsonNode(v, typeName));
+                ((ObjectNode) rootNode).set(k, toJsonNode(v, typeName));
+            });
+        } else if (property instanceof ObjectProperty){
+            rootNode = new ObjectNode(JsonNodeFactory.instance);
+            ((ObjectProperty) property).getProperties().forEach((k, v) -> {
+                ((ObjectNode) rootNode).set(k, toJsonNode(v, typeName));
             });
         }else{
             //TODO test
