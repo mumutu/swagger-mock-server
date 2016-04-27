@@ -6,6 +6,7 @@ import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCode;
 import akka.http.javadsl.model.StatusCodes;
 import akka.http.javadsl.model.headers.AccessControlAllowOrigin;
+import akka.http.javadsl.model.headers.HttpOrigin;
 import akka.http.javadsl.model.headers.HttpOriginRange;
 import akka.http.javadsl.server.*;
 import akka.http.javadsl.server.values.Parameters;
@@ -216,7 +217,7 @@ public class SwaggerMockServer extends HttpApp {
                                     });
                                     log.debug("CTX: {}", context);
                                     final HttpResponse httpResponse = HttpResponse.create()
-                                            .addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
+                                            .addHeader(AccessControlAllowOrigin.create(akka.http.scaladsl.model.headers.HttpOriginRange.$times$.MODULE$))
                                             .withEntity(ContentTypes.APPLICATION_JSON, fromPropertyToString(property, context))//tu.mumu.mock.MockHelper
                                             .withStatus(from(httpCode));
                                     return ctx.complete(httpResponse);
@@ -245,11 +246,12 @@ public class SwaggerMockServer extends HttpApp {
     }
 
     //TODO
+    //current only support int and String
     private PathMatcher fromProperty(Property property){
         if(property instanceof IntegerProperty){
             return PathMatchers.intValue();
         }
-        return PathMatchers.intValue(); //dummy one
+        return PathMatchers.segment(); //dummy one
     }
 
     /**
