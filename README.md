@@ -65,6 +65,29 @@ context var  is a string start with '$'
     page: '$page'
     max: 100
 ```
+### support chance to return a response definitions object
+
+once you define a reponse definiitons object with following extentions 
+```
+responses:
+  GeneralError:
+    description: Entity not found
+    schema:
+      $ref: "#/definitions/Response"
+    x-is-global: true
+    x-chance: 0.2
+    x-status-code: 503
+  GeneralResponse:
+    description: General Response
+    schema:
+      $ref: "#/definitions/Response"
+
+```
+
+* `x-is-global` will make other extentions to work  accept true/false
+* `x-chance` a chance that response will take place if multiply responsese have been defined take the first in order 
+* `x-status-code` bind the response object to a fixed HttpStatusCode
+
 
 ### How to Start
 
