@@ -8,6 +8,7 @@ import akka.http.javadsl.model.StatusCodes;
 import akka.http.javadsl.model.headers.AccessControlAllowOrigin;
 import akka.http.javadsl.model.headers.HttpOrigin;
 import akka.http.javadsl.model.headers.HttpOriginRange;
+import akka.http.javadsl.model.headers.HttpOriginRanges;
 import akka.http.javadsl.server.*;
 import akka.http.javadsl.server.values.Parameters;
 import akka.http.javadsl.server.values.PathMatcher;
@@ -159,7 +160,18 @@ public class SwaggerMockServer extends HttpApp {
                                     } else if (property instanceof DecimalProperty) {
                                         tempParam = Parameters.doubleValue(p.getName());
                                     } else if (property instanceof BooleanProperty) {
-                                        tempParam = Parameters.booleanValue(p.getName());
+                                        tempParam = Parameters.fromString(p.getName(), Boolean.class, str -> {
+                                            if (StringUtils.isBlank(str)) {
+                                                return false;
+                                            } else if("1".equals(str)) {
+                                                return true;
+                                            } else if("0".equals(str)){
+                                                return false;
+                                            } else {
+                                                return Boolean.parseBoolean(str);
+                                            }
+                                        });
+//                                        tempParam = Parameters.booleanValue(p.getName());
                                     } else if (property instanceof ArrayProperty) {
                                         //here only one nest
 //                                        Property nestedProperty = ((ArrayProperty) property).getItems();
@@ -217,7 +229,7 @@ public class SwaggerMockServer extends HttpApp {
                                     });
                                     log.debug("CTX: {}", context);
                                     final HttpResponse httpResponse = HttpResponse.create()
-                                            .addHeader(AccessControlAllowOrigin.create(akka.http.scaladsl.model.headers.HttpOriginRange.$times$.MODULE$))
+                                            .addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
                                             .withEntity(ContentTypes.APPLICATION_JSON, fromPropertyToString(property, context))//tu.mumu.mock.MockHelper
                                             .withStatus(from(httpCode));
                                     return ctx.complete(httpResponse);
