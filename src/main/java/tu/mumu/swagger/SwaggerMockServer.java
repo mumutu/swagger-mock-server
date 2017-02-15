@@ -201,7 +201,7 @@ public class SwaggerMockServer extends HttpApp {
                         Response repToBeShown = rep;
                         Route route = path(matchers.toArray()).route(
                                 handleWith(ctx -> {
-                                    Optional<Response> response = swagger.getResponses().values().stream()
+                                    Optional<Response> response = Optional.ofNullable(swagger.getResponses()).map(r -> r.values()).orElse(Collections.emptyList()).stream()
                                             .filter(reps -> (Boolean) reps.getVendorExtensions().getOrDefault("x-is-global", false))
                                             .map(reps -> {
                                                 Double chance = (Double) reps.getVendorExtensions().getOrDefault("x-chance", 0.0);
@@ -266,12 +266,11 @@ public class SwaggerMockServer extends HttpApp {
         return PathMatchers.segment(); //dummy one
     }
 
+
     /**
-     * TODO
+     *
      * @param obj
      * @param context
-     * @param clazz
-     * @param <T>
      * @return
      */
     private Long getOrFromContext(Object obj, Map context){
