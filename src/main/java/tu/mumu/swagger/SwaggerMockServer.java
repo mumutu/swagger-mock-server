@@ -5,14 +5,9 @@ import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCode;
 import akka.http.javadsl.model.StatusCodes;
-import akka.http.javadsl.model.headers.AccessControlAllowOrigin;
-import akka.http.javadsl.model.headers.HttpOrigin;
-import akka.http.javadsl.model.headers.HttpOriginRange;
-import akka.http.javadsl.model.headers.HttpOriginRanges;
+import akka.http.javadsl.model.headers.*;
 import akka.http.javadsl.server.*;
-import akka.http.javadsl.server.values.Parameters;
-import akka.http.javadsl.server.values.PathMatcher;
-import akka.http.javadsl.server.values.PathMatchers;
+import akka.http.javadsl.settings.ServerSettings;
 import akka.http.scaladsl.Http;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -27,13 +22,14 @@ import io.swagger.parser.SwaggerParser;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import play.libs.Json;
 import scala.Tuple2;
 import tu.mumu.mock.MockHelper;
 
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -42,6 +38,7 @@ import static akka.actor.ActorSystem.*;
 
 /**
  * Created by luye on 2016/4/7.
+ * updated by luye on 2017/2/17
  */
 public class SwaggerMockServer extends HttpApp {
 
@@ -68,7 +65,7 @@ public class SwaggerMockServer extends HttpApp {
         return swagger;
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, ExecutionException, InterruptedException {
 
         int port = 9000;
 
@@ -86,10 +83,8 @@ public class SwaggerMockServer extends HttpApp {
 
         // HttpApp.bindRoute expects a route being provided by HttpApp.createRoute
         SwaggerMockServer server = new SwaggerMockServer(args[0]);
-        server.bindRoute("0.0.0.0", port, system).whenComplete((binding, ex) -> {
-            server.setBinding(binding);
-        });
-
+        ServerSettings serverSettings = ServerSettings.create(system);
+        server.startServer("0.0.0.0", port, serverSettings);
     }
 
     public Http.ServerBinding getBinding() {
@@ -114,29 +109,8 @@ public class SwaggerMockServer extends HttpApp {
                     if (!entry.getValue().getOperations().isEmpty()) {
                         parameters.addAll(entry.getValue().getOperations().get(0).getParameters());
                     }
-                    //Generate Path Matcher
-                    List<PathMatcher> matchers = Stream.of(segments).filter(StringUtils::isNotBlank).map(s -> {
-                        String segment = s;
-                        if (segment.charAt(0) == '{' && segment.charAt(segment.length() - 1) == '}') {
-                            segment = segment.substring(1, segment.length() - 1);
-                            //find the type of this name
-                            String pathSeg = segment;
-                            Parameter parameter = parameters.stream()
-                                    .filter(p -> {
-                                        return "path".equals(p.getIn()) && pathSeg.equals(p.getName());
-                                    })
-                                    .findFirst().orElseThrow(() -> {
-                                        log.error("seg:{}, path:{}, pathVars:{}", new Object[]{pathSeg, entry.getKey(), parameters});
-                                        return new RuntimeException("Format error");
-                                    });//must have one
-
-                            PathParameter pathParameter = (PathParameter) parameter;
-                            Property property = PropertyBuilder.build(pathParameter.getType(), pathParameter.getFormat(), null);
-                            return fromProperty(property);
-                        }
-                        return PathMatchers.segment(segment);
-
-                    }).collect(Collectors.toList());
+                    //Generate Path Matcher with segment
+                   PathMatcher1 match = parseSegement(segments, parameters);
 
 
                     //Get route
@@ -199,7 +173,7 @@ public class SwaggerMockServer extends HttpApp {
 
                         Response rep = op.getResponses().getOrDefault("200", op.getResponses().get("404")); //TODO check
                         Response repToBeShown = rep;
-                        Route route = path(matchers.toArray()).route(
+                        Route route = path(matchers, () -> route(
                                 handleWith(ctx -> {
                                     Optional<Response> response = Optional.ofNullable(swagger.getResponses()).map(r -> r.values()).orElse(Collections.emptyList()).stream()
                                             .filter(reps -> (Boolean) reps.getVendorExtensions().getOrDefault("x-is-global", false))
@@ -229,10 +203,10 @@ public class SwaggerMockServer extends HttpApp {
                                     });
                                     log.debug("CTX: {}", context);
                                     final HttpResponse httpResponse = HttpResponse.create()
-                                            .addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
+                                            .addHeader(AccessControlAllowOrigin.create(HttpOriginRanges.ALL))
                                             .withEntity(ContentTypes.APPLICATION_JSON, fromPropertyToString(property, context))//tu.mumu.mock.MockHelper
                                             .withStatus(from(httpCode));
-                                    return ctx.complete(httpResponse);
+                                    return complete(httpResponse);
                                 }, paraNamedMapping.values().toArray(new RequestVal[]{}))
                         );
 
@@ -259,11 +233,42 @@ public class SwaggerMockServer extends HttpApp {
 
     //TODO
     //current only support int and String
-    private PathMatcher fromProperty(Property property){
+    private PathMatcher1 fromProperty(Property property){
         if(property instanceof IntegerProperty){
-            return PathMatchers.intValue();
+            return PathMatchers.integerSegment();
         }
         return PathMatchers.segment(); //dummy one
+    }
+
+
+    private PathMatcher1 parseSegement(String[] segments, Set<Parameter> parameters){
+        PathMatcher1 matcher = Stream.of(segments).filter(StringUtils::isNotBlank).map(s -> {
+            String segment = s;
+            if (segment.charAt(0) == '{' && segment.charAt(segment.length() - 1) == '}') {
+                segment = segment.substring(1, segment.length() - 1);
+                //find the type of this name
+                String pathSeg = segment;
+                Parameter parameter = parameters.stream()
+                        .filter(p -> "path".equals(p.getIn()) && pathSeg.equals(p.getName())                        )
+                        .findFirst().orElseThrow(() -> {
+                            log.error("seg:{}, pathVars:{}", new Object[]{pathSeg, parameters});
+                            return new RuntimeException("Format error");
+                        });//must have one
+
+                PathParameter pathParameter = (PathParameter) parameter;
+                Property property = PropertyBuilder.build(pathParameter.getType(), pathParameter.getFormat(), null);
+                return fromProperty(property);
+            }
+            /**
+             * make it as a PathMatcher1
+             */
+            return PathMatchers.segment(Pattern.compile(segment));
+
+        }).collect(Collectors.reducing((a,b) -> {
+            a.concat(b).concat("b").concat("b").con
+        })).get();
+
+        return matcher;
     }
 
 
@@ -296,9 +301,9 @@ public class SwaggerMockServer extends HttpApp {
     public String fromPropertyToString(Property property, Map context){
         String typeName = (String) property.getVendorExtensions().getOrDefault("x-yod-name", "default");
         if(property instanceof ArrayProperty) {
-            Long size = null;
-            Long page = null;
-            Long max = null;
+            Long size;
+            Long page;
+            Long max;
             try {
                 Map arraySetting = (Map) property.getVendorExtensions().getOrDefault("x-yod-array", Collections.emptyMap());
 
@@ -332,36 +337,48 @@ public class SwaggerMockServer extends HttpApp {
         }
     }
 
-    private Route[] wrapBasePath(List<Route> routes){
+    /**
+     * add base path
+     * @param routes
+     * @return
+     */
+    private List<Route> wrapBasePath(List<Route> routes){
         if(swagger.getBasePath() != null) {
-            Object[] matchers = Stream.of(swagger.getBasePath().split("/"))
-                    .filter(StringUtils::isNotBlank).map( s -> PathMatchers.segment(s)).collect(Collectors.toList()).toArray();
-            return new Route[] {
-                    pathPrefix(matchers).route(
-                    pathSingleSlash().route(complete("base"))
-                    , routes.toArray(new Route[]{}))
-            };
+//            Object[] matchers = Stream.of(swagger.getBasePath().split("/"))
+//                    .filter(StringUtils::isNotBlank).map( s -> PathMatchers.segment(s)).collect(Collectors.toList()).toArray();
+            Route baseWelcome = pathSingleSlash(() -> complete("base"));
+            List<Route> wrappedRoute = new LinkedList<>();
+            wrappedRoute.add(baseWelcome);
+            wrappedRoute.addAll(routes);
+
+            Route wrappedRouteWithBase = pathPrefix(swagger.getBasePath(), () -> route(
+                    wrappedRoute.toArray(new Route[]{})
+            ));
+            return Arrays.asList(wrappedRouteWithBase);
         }else{
-            return routes.toArray(new Route[]{});
+            return routes;
         }
     }
 
-    /**
-     * how to make this from swagger?
-     * Dynamic create
-     * @return
-     */
-    @Override
-    public Route createRoute() {
-        PathMatcher matcher = PathMatchers.segments();
-        return
-                // here the complete behavior for this server is defined
-                route(
-                        pathSingleSlash().route(handleWith(ctx -> {
-                            return ctx.complete("Swagger mock server");
-                        })),
-                        wrapBasePath(toRoute(paths))
-                );
 
+    final RejectionHandler rejectionHandler = RejectionHandler.newBuilder()
+            .handleAll(MethodRejection.class, rejs -> {
+                List<akka.http.javadsl.model.HttpMethod> methods
+                        = rejs.stream().map(rej -> rej.supported()).collect(Collectors.toList());
+                return options(() ->complete("abc"));
+            })
+            .build();
+
+    @Override
+    protected Route route() {
+        Route welcome =  pathSingleSlash(() -> complete("swagger mock server"));
+        List<Route> routes =  wrapBasePath(toRoute(paths));
+        List<Route> routeList = new LinkedList<>();
+        routeList.add(welcome);
+        routeList.addAll(routes);
+        return
+                route(
+                        routeList.toArray(new Route[]{})
+                );
     }
 }
