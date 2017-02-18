@@ -5,10 +5,7 @@ import akka.http.javadsl.model.ContentTypes;
 import akka.http.javadsl.model.HttpResponse;
 import akka.http.javadsl.model.StatusCode;
 import akka.http.javadsl.model.StatusCodes;
-import akka.http.javadsl.model.headers.AccessControlAllowOrigin;
-import akka.http.javadsl.model.headers.HttpOrigin;
-import akka.http.javadsl.model.headers.HttpOriginRange;
-import akka.http.javadsl.model.headers.HttpOriginRanges;
+import akka.http.javadsl.model.headers.*;
 import akka.http.javadsl.server.*;
 import akka.http.javadsl.server.values.Parameters;
 import akka.http.javadsl.server.values.PathMatcher;
@@ -230,6 +227,7 @@ public class SwaggerMockServer extends HttpApp {
                                     log.debug("CTX: {}", context);
                                     final HttpResponse httpResponse = HttpResponse.create()
                                             .addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
+                                            .addHeader(AccessControlAllowHeaders.create("Origin", "X-Requested-With", "Content-Type", "Accept"))
                                             .withEntity(ContentTypes.APPLICATION_JSON, fromPropertyToString(property, context))//tu.mumu.mock.MockHelper
                                             .withStatus(from(httpCode));
                                     return ctx.complete(httpResponse);
@@ -356,12 +354,12 @@ public class SwaggerMockServer extends HttpApp {
         PathMatcher matcher = PathMatchers.segments();
         return
                 // here the complete behavior for this server is defined
-                route(
+                handleRejections(new MyRejectionHandler(), route(
                         pathSingleSlash().route(handleWith(ctx -> {
                             return ctx.complete("Swagger mock server");
                         })),
                         wrapBasePath(toRoute(paths))
-                );
+                ));
 
     }
 }
