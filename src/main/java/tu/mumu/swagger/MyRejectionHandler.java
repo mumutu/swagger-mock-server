@@ -16,12 +16,20 @@ import akka.http.scaladsl.model.StatusCodes;
 public class MyRejectionHandler extends RejectionHandler{
 
     @Override
+    public RouteResult handleEmptyRejection(RequestContext context){
+        HttpResponse response = HttpResponse.create();
+        return context.complete(response.withStatus(404).withEntity("资源不存在"));
+    }
+
+    @Override
     public RouteResult handleMethodRejection(RequestContext context, HttpMethod method){
         if("OPTIONS".equalsIgnoreCase(context.request().method().name())){
             HttpResponse response = HttpResponse.create();
-            return context.complete( response.withStatus(204).addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL)).addHeader(AccessControlAllowHeaders.create("Origin", "X-Requested-With", "Content-Type", "Accept")));
+            return context.complete( response.withStatus(204).addHeader(AccessControlAllowOrigin.create(HttpOriginRange.ALL))
+                    .addHeader(AccessControlAllowHeaders.create("Origin", "X-Requested-With", "Content-Type", "Accept")));
         }else{
-            return context.complete("method not allowed");
+            HttpResponse response = HttpResponse.create();
+            return context.complete(response.withStatus(404));
         }
     }
 }

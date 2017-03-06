@@ -354,12 +354,18 @@ public class SwaggerMockServer extends HttpApp {
         PathMatcher matcher = PathMatchers.segments();
         return
                 // here the complete behavior for this server is defined
-                handleRejections(new MyRejectionHandler(), route(
+                handleRejections(new MyRejectionHandler(),
+                        route(
                         pathSingleSlash().route(handleWith(ctx -> {
                             return ctx.complete("Swagger mock server");
                         })),
-                        wrapBasePath(toRoute(paths))
-                ));
+                        wrapBasePath(toRoute(paths)))
+                );
+//        return route(
+//                        pathSingleSlash().route(handleWith(ctx -> {
+//                            return ctx.complete("Swagger mock server");
+//                        })),
+//                        wrapBasePath(toRoute(paths)));
 
     }
 }
